@@ -26,7 +26,7 @@ export class BrandsService {
   }
 
   findAll() {
-    return `This action returns all brands`;
+    return this.brands;
   }
 
   findOne(id: string) {
@@ -52,5 +52,9 @@ export class BrandsService {
 
   remove(id: string) {
     this.brands = this.brands.filter(brand => brand.id !== id)
+  }
+
+  fillBrandsWithSeedData(brands: Brand[]) {
+    this.brands = brands
   }
 }
