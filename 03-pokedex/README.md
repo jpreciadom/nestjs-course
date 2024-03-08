@@ -17,7 +17,12 @@ $ npm ci
 ```
 $ docker-compose up -d
 ```
-5. Start the app in watch mode:
+5. Copy the __.env.template__ file and rename it to __.env__:
+```
+$ cp .env.template .env
+```
+6. Fill the env variables at __.env__ file
+7. Start the app in watch mode:
 ```
 $ npm run start:dev
 ```
