@@ -4,7 +4,8 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { NotFoundError } from 'rxjs';
+import { PaginationDto } from 'src/common/dtos';
+import {validate as isUUID} from 'uuid';
 
 @Injectable()
 export class ProductsService {
@@ -33,23 +34,32 @@ export class ProductsService {
     }
   }
 
-  async findAll(): Promise<Product[]> {
-    return this.productRepository.find();
+  async findAll(paginationDto: PaginationDto): Promise<Product[]> {
+    const {limit = 10, offset = 0} = paginationDto;
+
+    return this.productRepository.find({
+      take: limit,
+      skip: offset,
+    });
   }
 
-  async findById(id: string): Promise<Product> {
-    const product = this.productRepository.findOne({
-      where: {id},
+  async findByOne(term: string): Promise<Product> {
+    const product: Product = await this.productRepository.findOne({
+      where: [
+        {id: term},
+        {slug: term},
+        {title: term},
+      ],
     });
 
     if (!product)
-      throw new NotFoundException(`Product with id ${id} not found`);
+      throw new NotFoundException(`Product with ${term} not found`);
 
     return product;
   }
 
   async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
-    const product = await this.findById(id);
+    const product = await this.findByOne(id);
     try {
       
     } catch (error) {
@@ -60,7 +70,7 @@ export class ProductsService {
   }
 
   async remove(id: string): Promise<Product> {
-    const product = this.findById(id);
+    const product = this.findByOne(id);
     await this.productRepository.delete({id});
     return product;
   }
