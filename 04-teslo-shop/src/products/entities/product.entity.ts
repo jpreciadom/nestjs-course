@@ -1,4 +1,5 @@
-import { BeforeInsert, Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { BeforeInsert, BeforeUpdate, Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { ProductImage } from "./product-image.entity";
 
 @Entity()
 export class Product {
@@ -13,6 +14,7 @@ export class Product {
 
   @Column({
     type: 'float',
+    default: 0,
   })
   price: number;
 
@@ -45,11 +47,25 @@ export class Product {
   })
   gender: string;
 
+  @Column({
+    type: 'text',
+    array: true,
+    default: [],
+  })
+  tags: string[];
+
+  @OneToMany(
+    () => ProductImage,
+    (productImage) => productImage.product,
+    {cascade: true, eager: true},
+  )
+  images?: ProductImage[]
+
   @BeforeInsert()
+  @BeforeUpdate()
   checkSlug() {
-    if (!this.slug) {
+    if (!this.slug)
       this.slug = this.title
-    }
   
     this.slug = this.slug
       .toLowerCase()

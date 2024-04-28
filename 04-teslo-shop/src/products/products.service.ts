@@ -3,9 +3,10 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { PaginationDto } from 'src/common/dtos';
 import {validate as isUUID} from 'uuid';
+import { ProductImage } from './entities';
 
 @Injectable()
 export class ProductsService {
@@ -14,7 +15,10 @@ export class ProductsService {
   
   constructor(
     @InjectRepository(Product)
-    private readonly productRepository: Repository<Product>
+    private readonly productRepository: Repository<Product>,
+    @InjectRepository(ProductImage)
+    private readonly productImageRepository: Repository<ProductImage>,
+    private readonly dataSource: DataSource,
   ) {}
 
   private handleDbExceptions(error: any): void {
@@ -25,32 +29,51 @@ export class ProductsService {
       throw new InternalServerErrorException('Insertion fails');
   }
 
-  async create(createProductDto: CreateProductDto): Promise<Product> {
+  async create(createProductDto: CreateProductDto): Promise<any> {
     try {
-      const product = this.productRepository.create(createProductDto);
-      return await this.productRepository.save(product);
+      const {images = [], ...productDetails} = createProductDto
+      const product = this.productRepository.create({
+        ...productDetails,
+        images: images.map((url: string) => this.productImageRepository.create({url})),
+      });
+
+      await this.productRepository.save(product);
+      return {...product, images}
     } catch (error) {
       this.handleDbExceptions(error);
     }
   }
 
-  async findAll(paginationDto: PaginationDto): Promise<Product[]> {
+  async findAll(paginationDto: PaginationDto): Promise<any> {
     const {limit = 10, offset = 0} = paginationDto;
 
-    return this.productRepository.find({
+    const products = await this.productRepository.find({
       take: limit,
       skip: offset,
+      relations: {
+        images: true,
+      }
     });
+  
+    return products.map(({images, ...productInfo}) => ({
+      ...productInfo,
+      images: images.map((image) => image.url)
+    }))
   }
 
-  async findByOne(term: string): Promise<Product> {
-    const product: Product = await this.productRepository.findOne({
-      where: [
-        {id: term},
-        {slug: term},
-        {title: term},
-      ],
-    });
+  async findOne(term: string): Promise<Product> {
+    let product: Product
+    
+    if (isUUID(term)) {
+      product = await this.productRepository.findOneBy({id: term})
+    } else {
+      product= await this.productRepository.findOne({
+        where: [
+          {slug: term},
+          {title: term},
+        ],
+      });
+    }
 
     if (!product)
       throw new NotFoundException(`Product with ${term} not found`);
@@ -59,19 +82,43 @@ export class ProductsService {
   }
 
   async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
-    const product = await this.findByOne(id);
+    const {images, ...toUpdate} = updateProductDto;
+    const product = await this.productRepository.preload({id, ...toUpdate})
+    if(!product) throw new NotFoundException(`Product with id ${id} not found`)
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
-      
+      if (images) {
+        await queryRunner.manager.delete(ProductImage, { product: {id}})
+        product.images = images.map(image => this.productImageRepository.create({url: image}));
+      }
+      await queryRunner.manager.save(product)
+      await queryRunner.commitTransaction();
+      await queryRunner.release();
     } catch (error) {
-      this.handleDbExceptions(error);
+      await queryRunner.rollbackTransaction();
+      await queryRunner.release();
+      this.handleDbExceptions(error)
     }
 
-    throw new NotImplementedException();
+    return product;
   }
 
   async remove(id: string): Promise<Product> {
-    const product = this.findByOne(id);
+    const product = this.findOne(id);
     await this.productRepository.delete({id});
     return product;
+  }
+
+  async deleteAllProducts() {
+    const query = this.productRepository.createQueryBuilder('product');
+    try {
+      return await query.delete().where({}).execute();
+    } catch (error) {
+      this.handleDbExceptions(error)
+    }
   }
 }
