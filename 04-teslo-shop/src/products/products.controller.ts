@@ -4,14 +4,20 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { PaginationDto } from 'src/common/dtos';
+import { Authorize, GetUser } from '../auth/decorators';
+import { User } from '../auth/entities';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  async create(@Body() createProductDto: CreateProductDto): Promise<Product> {
-    return this.productsService.create(createProductDto);
+  @Authorize()
+  async create(
+    @Body() createProductDto: CreateProductDto,
+    @GetUser() user: User,
+  ): Promise<Product> {
+    return this.productsService.create(createProductDto, user);
   }
 
   @Get()

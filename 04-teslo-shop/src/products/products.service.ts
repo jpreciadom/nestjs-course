@@ -7,6 +7,7 @@ import { DataSource, Repository } from 'typeorm';
 import { PaginationDto } from 'src/common/dtos';
 import {validate as isUUID} from 'uuid';
 import { ProductImage } from './entities';
+import { User } from '../auth/entities';
 
 @Injectable()
 export class ProductsService {
@@ -29,12 +30,13 @@ export class ProductsService {
       throw new InternalServerErrorException('Insertion fails');
   }
 
-  async create(createProductDto: CreateProductDto): Promise<any> {
+  async create(createProductDto: CreateProductDto, user: User): Promise<any> {
     try {
       const {images = [], ...productDetails} = createProductDto
       const product = this.productRepository.create({
         ...productDetails,
         images: images.map((url: string) => this.productImageRepository.create({url})),
+        user: user,
       });
 
       await this.productRepository.save(product);
