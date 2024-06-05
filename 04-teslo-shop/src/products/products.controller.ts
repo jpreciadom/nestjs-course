@@ -6,13 +6,17 @@ import { Product } from './entities/product.entity';
 import { PaginationDto } from 'src/common/dtos';
 import { Authorize, GetUser } from '../auth/decorators';
 import { User } from '../auth/entities';
+import { ApiResponse, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Products')
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
   @Authorize()
+  @ApiResponse({ status: 201, description: 'Product was created', type: Product})
+  @ApiResponse({status: 400, description: 'Bad request'})
   async create(
     @Body() createProductDto: CreateProductDto,
     @GetUser() user: User,
